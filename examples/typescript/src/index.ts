@@ -38,7 +38,7 @@ disconnectButton.style.display = "none";
 traceButton.style.display = "none";
 eraseButton.style.display = "none";
 consoleStopButton.style.display = "none";
-filesDiv.style.display = "none";
+filesDiv.style.display = "initial";
 
 /**
  * The built in Event object.
@@ -51,17 +51,32 @@ filesDiv.style.display = "none";
  * @param {Event} evt File Select event
  */
 function handleFileSelect(evt) {
-  const file = evt.target.files[0];
+  return new Promise((resolve, reject) => {
+    const file = evt.target.files[0];
 
-  if (!file) return;
+    if (!file) {
+      reject("No file selected");
+      return;
+    }
 
-  const reader = new FileReader();
+    console.log("File selected: " + file.name);
+    const reader = new FileReader();
 
-  reader.onload = (ev: ProgressEvent<FileReader>) => {
-    evt.target.data = ev.target.result;
-  };
+    reader.onload = (ev: ProgressEvent<FileReader>) => {
+      console.log("File loaded: " + file.name);
+      if (ev.target.result) {
+        resolve(ev.target.result);
+      } else {
+        reject("FileReader did not return a result");
+      }
+    };
 
-  reader.readAsBinaryString(file);
+    reader.onerror = () => {
+      reject("Error occurred while reading the file");
+    };
+
+    reader.readAsBinaryString(file);
+  });
 }
 
 const espLoaderTerminal = {
@@ -351,4 +366,91 @@ programButton.onclick = async () => {
   }
 };
 
-addFileButton.onclick(this);
+async function addFile(flashAddress, file) {
+  const rowCount = table.rows.length;
+  const row = table.insertRow(rowCount);
+
+  // Column 1 - Offset
+  const cell1 = row.insertCell(0);
+  const element1 = document.createElement("input");
+  element1.type = "text";
+  element1.id = "offset" + rowCount;
+  element1.value = flashAddress || "0x1000"; // Use provided flash address or default value
+  cell1.appendChild(element1);
+
+  // Column 2 - File selector
+  const cell2 = row.insertCell(1);
+  const element2 = document.createElement("input");
+  element2.type = "file";
+  element2.id = "selectFile" + rowCount;
+  element2.name = "selected_File" + rowCount;
+  // if (file) {
+  //   element2.files = file; // Assign provided file if available
+
+  // }
+  if (file) {
+    setFilesInput(element2, file);
+    let data = await handleFileSelect({ target: { files: [file] } });
+    file.data = data;
+    element2.data = data;
+  }
+
+  element2.addEventListener("change", handleFileSelect, false);
+  cell2.appendChild(element2);
+
+  // Column 3 - Progress
+  const cell3 = row.insertCell(2);
+  cell3.classList.add("progress-cell");
+  cell3.style.display = "none";
+  cell3.innerHTML = `<progress value="0" max="100"></progress>`;
+
+  // Column 4 - Remove File
+  const cell4 = row.insertCell(3);
+  cell4.classList.add("action-cell");
+  if (rowCount > 1) {
+    const element4 = document.createElement("input");
+    element4.type = "button";
+    element4.name = "button" + rowCount;
+    element4.setAttribute("class", "btn");
+    element4.setAttribute("value", "Remove");
+    element4.onclick = function () {
+      removeRow(row);
+    };
+    cell4.appendChild(element4);
+  }
+}
+
+async function fetchFile(url) {
+  try {
+    const response = await fetch(url);
+    const blob = await response.blob();
+    let file = new File([blob], url.split("/").pop(), { type: blob.type });
+    console.log(blob);
+    return file;
+  } catch (error) {
+    console.error("Error fetching file:", error);
+    return null;
+  }
+}
+
+function setFilesInput(inputElement, file) {
+  const dataTransfer = new DataTransfer();
+  dataTransfer.items.add(file);
+
+  handleFileSelect({ target: { files: [file] } });
+
+  inputElement.files = dataTransfer.files;
+}
+
+async function initFiles() {
+  const fileUrls = ["/fw/bootloader.bin", "/fw/partitions.bin", "/fw/ota_data_initial.bin", "/fw/firmware.bin"];
+
+  const flashAddresses = ["0x1000", "0x8000", "0xe000", "0x10000"];
+
+  for (let i = 0; i < fileUrls.length; i++) {
+    const file = await fetchFile(fileUrls[i]);
+    addFile(flashAddresses[i], file);
+  }
+}
+
+initFiles();
