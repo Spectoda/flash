@@ -40,6 +40,10 @@ eraseButton.style.display = "none";
 consoleStopButton.style.display = "none";
 filesDiv.style.display = "initial";
 
+document.querySelector("#msg").style.color = "lightgray";
+document.querySelector("#msg").innerHTML =
+  "Click flash controller, select device and then hold till flash is complete...";
+
 /**
  * The built in Event object.
  * @external Event
@@ -91,13 +95,18 @@ const espLoaderTerminal = {
   },
 };
 
-connectButton.onclick = async () => {
+connectButton.onclick = connectHandler;
+
+async function connectHandler() {
   if (device === null) {
     device = await navigator.serial.requestPort({});
     transport = new Transport(device, true);
   }
 
   try {
+    await device.close().catch((e) => {
+      console.error(e);
+    });
     const flashOptions = {
       transport,
       baudrate: parseInt(baudrates.value),
@@ -111,7 +120,7 @@ connectButton.onclick = async () => {
     // await esploader.flashId();
   } catch (e) {
     console.error(e);
-    term.writeln(`Error: ${e.message}`);
+    if (!e.includes("The port is already open")) term.writeln(`Error: ${e.message}`);
   }
 
   console.log("Settings done for :" + chip);
@@ -125,7 +134,7 @@ connectButton.onclick = async () => {
   eraseButton.style.display = "initial";
   filesDiv.style.display = "initial";
   consoleDiv.style.display = "none";
-};
+}
 
 traceButton.onclick = async () => {
   if (transport) {
@@ -308,6 +317,7 @@ function validateProgramInputs() {
 }
 
 programButton.onclick = async () => {
+  await connectHandler();
   const alertMsg = document.getElementById("alertmsg");
   const err = validateProgramInputs();
 
@@ -316,6 +326,9 @@ programButton.onclick = async () => {
     alertDiv.style.display = "block";
     return;
   }
+
+  document.querySelector("#msg").style.color = "lightgray";
+  document.querySelector("#msg").innerHTML = "Firmware flashing in progress...";
 
   // Hide error message
   alertDiv.style.display = "none";
@@ -354,8 +367,12 @@ programButton.onclick = async () => {
     } as FlashOptions;
     await esploader.writeFlash(flashOptions);
     await esploader.hardReset();
+    document.querySelector("#msg").style.color = "green";
+    document.querySelector("#msg").innerHTML = "Firmware flashed successfully";
   } catch (e) {
     console.error(e);
+    document.querySelector("#msg").style.color = "red";
+    document.querySelector("#msg").innerHTML = "Error: " + e.message;
     term.writeln(`Error: ${e.message}`);
   } finally {
     // Hide progress bars and show erase buttons

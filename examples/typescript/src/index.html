@@ -31,8 +31,12 @@
         <div align="center">
             <!-- <a class="btn btn-info" href="./docs/index.html">View the API Documentation</a> -->
           </div>
-        <div class="container" id="main">
+        <div class="container flex justify-content-center" id="main">
             <hr/>
+            <details>
+                <summary>
+                    <div class="btn btn-secondary btn-sm d-block mx-auto" style="background-color: antiquewhite;">Advanced stuff 🕹️</div>
+                </summary>
             <div id="program">
                 <h3> Program </h3>
                 <label for="baudrates" id="lblBaudrate">Baudrate:</label>
@@ -68,13 +72,13 @@
                         </tbody>
                     </table>
                     <input class="btn btn-info btn-sm" type="button" id="addFile" value="Add File" />
-                    <input class="btn btn-primary " type="button" id="programButton" value="Flash controller" />
                 </div>
                 <output id="list"></output>
                 <hr/>
             </div>
+
             <div id="console">
-                <h3>Console </h3>
+                <h3>Debug Console </h3>
                 <label style="display:none" id="lblConsoleFor">Connected to device: </label>
 
                 <input class="btn btn-info" type="button" id="consoleStartButton" value="Start" />
@@ -82,7 +86,11 @@
                 <input class="btn btn-info" type="button" id="resetButton" value="Reset" />
                 <hr/>
             </div>
-            <div id="terminal"></div>
+        </details>
+            <input class="btn btn-primary btn-lg d-block mx-auto mt-5" style="display: block; margin:auto;margin-top:50px" type="button" id="programButton" value="Flash controller" />
+<div id="msg" style="margin:50px;margin-left:auto;margin-right: auto; text-align: center;"></div>
+            
+            <div id="terminal" style="max-height: 300px;"></div>
         </div>
         <script src="index.ts" type="module"></script>
         <script>
