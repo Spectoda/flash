@@ -338,6 +338,7 @@ programButton.onclick = async () => {
       calculateMD5Hash: (image) => CryptoJS.MD5(CryptoJS.enc.Latin1.parse(image)),
     } as FlashOptions;
     await esploader.writeFlash(flashOptions);
+    await esploader.hardReset();
   } catch (e) {
     console.error(e);
     term.writeln(`Error: ${e.message}`);
