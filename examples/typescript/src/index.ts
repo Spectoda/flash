@@ -26,7 +26,8 @@ import { ESPLoader, FlashOptions, LoaderOptions, Transport } from "../../../lib"
 declare let Terminal; // Terminal is imported in HTML script
 declare let CryptoJS; // CryptoJS is imported in HTML script
 
-const term = new Terminal({ cols: 120, rows: 40 });
+const term = new Terminal({ cols: 120, rows: 24, fontSize: 14 });
+
 term.open(terminal);
 
 let device = null;
@@ -40,7 +41,6 @@ eraseButton.style.display = "none";
 consoleStopButton.style.display = "none";
 filesDiv.style.display = "initial";
 
-document.querySelector("#msg").style.color = "lightgray";
 document.querySelector("#msg").innerHTML =
   "Click flash controller, select device and then hold till flash is complete...";
 
