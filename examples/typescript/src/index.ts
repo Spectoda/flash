@@ -42,7 +42,7 @@ consoleStopButton.style.display = "none";
 filesDiv.style.display = "initial";
 
 document.querySelector("#msg").innerHTML =
-  "Click flash controller, select device and then hold till flash is complete...";
+  "Click flash controller, select device and then hold till flash is complete... <br />Make sure the Serial port is being opened exclusively by this website.";
 
 /**
  * The built in Event object.
