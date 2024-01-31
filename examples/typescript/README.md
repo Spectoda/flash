@@ -4,6 +4,10 @@ This example has example code in `src/index.ts` which is called in the `index.ht
 
 **NOTE:** This example is linked to the documentation generated from the source code. You could remove such dependency if necessary by remove `./docs/index.html` from `src/index.html` if you need so. NPM commands used below will generate documentation as well.
 
+## Prerequirement
+
+Put FW files (bootloader.bin, firmware.bin...) into `assets/fw` directory 
+
 ## Testing it locally
 
 ```

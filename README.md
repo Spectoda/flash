@@ -1,3 +1,11 @@
+# Introduction - Info for Developers of Spectoda flash webapp
+
+- the project is in `examples/typescript` we are preserving it there so we can better detect in future esptool updates what changed
+
+- it's is just a fork of esptool.js by expressif, we may add some smart features on top of it but hosting of FW and other stuff in integration with our platform is closed (integration with Spectoda Studio).
+
+Down here is kept official README info by Expressif
+
 # Javascript implementation of esptool
 
 This repository contains a Javascript implementation of [esptool](https://github.com/espressif/esptool), a serial flasher utility for Espressif chips. `esptool-js` is based on [Web Serial API](https://wicg.github.io/serial/) and works in Google Chrome and Microsoft Edge [version 89 or later](https://developer.mozilla.org/en-US/docs/Web/API/Serial#browser_compatibility) browsers.
