@@ -35,6 +35,16 @@ let transport: Transport;
 let chip: string = null;
 let esploader: ESPLoader;
 
+const controllerInfo = {
+  mac: null,
+  chip: null,
+  features: null,
+  crystal: null,
+  log: "",
+};
+window.term = term;
+window.controllerInfo = controllerInfo;
+
 let isFlashing = false;
 function setIsFlashing(is_flashing) {
   isFlashing = is_flashing;
@@ -100,9 +110,15 @@ const espLoaderTerminal = {
   },
   writeLine(data) {
     term.writeln(data);
+    controllerInfo.log += data + "\n";
   },
   write(data) {
     term.write(data);
+    controllerInfo.log += data;
+  },
+  writeln(data) {
+    term.writeln(data);
+    controllerInfo.log += data + "\n";
   },
 };
 
@@ -118,7 +134,7 @@ async function connectHandler() {
       cleanUp();
       document.querySelector("#msg").style.color = "yellow";
       document.querySelector("#msg").innerHTML = "Warn: " + e.message;
-      term.writeln(`Warn: ${e.message}`);
+      espLoaderTerminal.writeln(`Warn: ${e.message}`);
     });
 
     transport = new Transport(device, true);
@@ -135,15 +151,23 @@ async function connectHandler() {
       baudrate: parseInt(baudrates.value),
       terminal: espLoaderTerminal,
     } as LoaderOptions;
+
+    // reset logs
+    controllerInfo.log = "";
     esploader = new ESPLoader(flashOptions);
 
     chip = await esploader.main();
+
+    controllerInfo.mac = await esploader.chip.readMac(esploader);
+    controllerInfo.chip = chip;
+    controllerInfo.crystal = (await esploader.chip.getCrystalFreq(esploader)) + "MHz";
+    controllerInfo.features = await esploader.chip.getChipFeatures(esploader);
 
     // Temporarily broken
     // await esploader.flashId();
   } catch (e) {
     console.error(e);
-    if (!e.message?.includes("The port is already open")) term.writeln(`Error: ${e.message}`);
+    if (!e.message?.includes("The port is already open")) espLoaderTerminal.writeln(`Error: ${e.message}`);
   }
 
   console.log("Settings done for :" + chip);
@@ -182,7 +206,7 @@ eraseButton.onclick = async () => {
     await esploader.eraseFlash();
   } catch (e) {
     console.error(e);
-    term.writeln(`Error: ${e.message}`);
+    espLoaderTerminal.writeln(`Error: ${e.message}`);
   } finally {
     eraseButton.disabled = false;
   }
@@ -257,6 +281,11 @@ function cleanUp() {
   chip = null;
   setIsFlashing(false);
 
+  controllerInfo.mac = null;
+  controllerInfo.chip = null;
+  controllerInfo.features = null;
+  controllerInfo.crystal = null;
+
   document.querySelector("#msg").style.color = "white";
   document.querySelector("#msg").innerHTML = "";
 }
@@ -264,7 +293,7 @@ function cleanUp() {
 disconnectButton.onclick = async () => {
   if (transport) await transport.disconnect();
 
-  term.clear();
+  espLoaderTerminal.clear();
   baudrates.style.display = "initial";
   connectButton.style.display = "initial";
   disconnectButton.style.display = "none";
@@ -294,7 +323,7 @@ consoleStartButton.onclick = async () => {
   while (true && !isConsoleClosed) {
     const val = await transport.rawRead();
     if (typeof val !== "undefined") {
-      term.write(val);
+      espLoaderTerminal.write(val);
     } else {
       break;
     }
@@ -306,7 +335,7 @@ consoleStopButton.onclick = async () => {
   isConsoleClosed = true;
   await transport.disconnect();
   await transport.waitForUnlock(1500);
-  term.clear();
+  espLoaderTerminal.clear();
   consoleStartButton.style.display = "initial";
   consoleStopButton.style.display = "none";
   programDiv.style.display = "initial";
@@ -398,9 +427,12 @@ programButton.onclick = async () => {
     await esploader.hardReset();
     document.querySelector("#msg").style.color = "green";
     document.querySelector("#msg").innerHTML = "Firmware flashed successfully";
+
     setIsFlashing(false);
     // moznost pridat barvicky \x1b[1;32m zelena \x1b[0m bila
-    term.writeln("Flash success");
+    espLoaderTerminal.writeln("Flash success");
+
+    emitControllerInfoToParentWindow(controllerInfo);
   } catch (e) {
     // hack so this shows after listener trigger
     setTimeout(() => {
@@ -409,7 +441,9 @@ programButton.onclick = async () => {
 
       document.querySelector("#msg").style.color = "red";
       document.querySelector("#msg").innerHTML = "Error: " + message;
-      term.writeln(`Error: ${message}`);
+      espLoaderTerminal.writeln(`Error: ${message}`);
+
+      emitControllerInfoToParentWindow(controllerInfo);
     }, 0);
   } finally {
     // Hide progress bars and show erase buttons
@@ -520,3 +554,11 @@ async function initFiles() {
 }
 
 initFiles();
+
+/**
+ *
+ * @param controllerInfo this allows integration into other web apps
+ */
+function emitControllerInfoToParentWindow(controllerInfo) {
+  window.parent.postMessage(JSON.stringify({ type: "controller-info", controllerInfo }), "*");
+}
