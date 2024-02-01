@@ -40,7 +40,7 @@ const controllerInfo = {
   chip: null,
   features: null,
   crystal: null,
-  log: "",
+  flashLog: "",
 };
 window.term = term;
 window.controllerInfo = controllerInfo;
@@ -110,15 +110,15 @@ const espLoaderTerminal = {
   },
   writeLine(data) {
     term.writeln(data);
-    controllerInfo.log += data + "\n";
+    controllerInfo.flashLog += data + "\n";
   },
   write(data) {
     term.write(data);
-    controllerInfo.log += data;
+    controllerInfo.flashLog += data;
   },
   writeln(data) {
     term.writeln(data);
-    controllerInfo.log += data + "\n";
+    controllerInfo.flashLog += data + "\n";
   },
 };
 
@@ -153,7 +153,7 @@ async function connectHandler() {
     } as LoaderOptions;
 
     // reset logs
-    controllerInfo.log = "";
+    controllerInfo.flashLog = "";
     esploader = new ESPLoader(flashOptions);
 
     chip = await esploader.main();
@@ -280,11 +280,6 @@ function cleanUp() {
   transport = null;
   chip = null;
   setIsFlashing(false);
-
-  controllerInfo.mac = null;
-  controllerInfo.chip = null;
-  controllerInfo.features = null;
-  controllerInfo.crystal = null;
 
   document.querySelector("#msg").style.color = "white";
   document.querySelector("#msg").innerHTML = "";
@@ -561,4 +556,9 @@ initFiles();
  */
 function emitControllerInfoToParentWindow(controllerInfo) {
   window.parent.postMessage(JSON.stringify({ type: "controller-info", controllerInfo }), "*");
+
+  controllerInfo.mac = null;
+  controllerInfo.chip = null;
+  controllerInfo.features = null;
+  controllerInfo.crystal = null;
 }
