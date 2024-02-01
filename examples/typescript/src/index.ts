@@ -35,6 +35,17 @@ let transport: Transport;
 let chip: string = null;
 let esploader: ESPLoader;
 
+let isFlashing = false;
+function setIsFlashing(is_flashing) {
+  isFlashing = is_flashing;
+
+  if (isFlashing) {
+    programButton.setAttribute("disabled", "true");
+  } else {
+    programButton.removeAttribute("disabled");
+  }
+}
+
 disconnectButton.style.display = "none";
 traceButton.style.display = "none";
 eraseButton.style.display = "none";
@@ -99,9 +110,21 @@ connectButton.onclick = connectHandler;
 
 async function connectHandler() {
   if (device === null) {
+    cleanUp();
     device = await navigator.serial.requestPort({});
+    device.addEventListener("disconnect", () => {
+      const e = { message: "The device has been disconnected." };
+
+      cleanUp();
+      document.querySelector("#msg").style.color = "yellow";
+      document.querySelector("#msg").innerHTML = "Warn: " + e.message;
+      term.writeln(`Warn: ${e.message}`);
+    });
+
     transport = new Transport(device, true);
   }
+  setIsFlashing(true);
+  window.device = device;
 
   try {
     await device.close().catch((e) => {
@@ -120,7 +143,7 @@ async function connectHandler() {
     // await esploader.flashId();
   } catch (e) {
     console.error(e);
-    if (!e.includes("The port is already open")) term.writeln(`Error: ${e.message}`);
+    if (!e.message?.includes("The port is already open")) term.writeln(`Error: ${e.message}`);
   }
 
   console.log("Settings done for :" + chip);
@@ -228,9 +251,14 @@ function removeRow(row: HTMLTableRowElement) {
  * Clean devices variables on chip disconnect. Remove stale references if any.
  */
 function cleanUp() {
+  console.log("Cleaning up device variables");
   device = null;
   transport = null;
   chip = null;
+  setIsFlashing(false);
+
+  document.querySelector("#msg").style.color = "white";
+  document.querySelector("#msg").innerHTML = "";
 }
 
 disconnectButton.onclick = async () => {
@@ -313,6 +341,7 @@ function validateProgramInputs() {
     fileData = fileObj.data;
     if (fileData == null) return "No file selected for row " + index + "!";
   }
+
   return "success";
 }
 
@@ -369,11 +398,19 @@ programButton.onclick = async () => {
     await esploader.hardReset();
     document.querySelector("#msg").style.color = "green";
     document.querySelector("#msg").innerHTML = "Firmware flashed successfully";
+    setIsFlashing(false);
+    // moznost pridat barvicky \x1b[1;32m zelena \x1b[0m bila
+    term.writeln("Flash success");
   } catch (e) {
-    console.error(e);
-    document.querySelector("#msg").style.color = "red";
-    document.querySelector("#msg").innerHTML = "Error: " + e.message;
-    term.writeln(`Error: ${e.message}`);
+    // hack so this shows after listener trigger
+    setTimeout(() => {
+      let message = e.message;
+      message += ". Please reconnect controller and try again by clicking (Flash controller).";
+
+      document.querySelector("#msg").style.color = "red";
+      document.querySelector("#msg").innerHTML = "Error: " + message;
+      term.writeln(`Error: ${message}`);
+    }, 0);
   } finally {
     // Hide progress bars and show erase buttons
     for (let index = 1; index < table.rows.length; index++) {
@@ -466,8 +503,20 @@ async function initFiles() {
 
   for (let i = 0; i < fileUrls.length; i++) {
     const file = await fetchFile(fileUrls[i]);
+    setIsFlashing(true);
+    document.querySelector("#msg").style.color = "yellow";
+    document.querySelector("#msg").innerHTML = "Loading fw files...";
     addFile(flashAddresses[i], file);
+    if (file.type !== "application/octet-stream") {
+      document.querySelector("#msg").style.color = "red";
+      document.querySelector("#msg").innerHTML = "Error: " + "FW files not found, please contact support +420730659547";
+      return;
+    }
   }
+  document.querySelector("#msg").style.color = "green";
+  document.querySelector("#msg").innerHTML = "Ready...";
+
+  setIsFlashing(false);
 }
 
 initFiles();
