@@ -299,6 +299,8 @@ disconnectButton.onclick = async () => {
   alertDiv.style.display = "none";
   consoleDiv.style.display = "initial";
   cleanUp();
+
+  emitResetToParentWindow();
 };
 
 let isConsoleClosed = false;
@@ -427,18 +429,23 @@ programButton.onclick = async () => {
     // moznost pridat barvicky \x1b[1;32m zelena \x1b[0m bila
     espLoaderTerminal.writeln("Flash success");
 
-    emitControllerInfoToParentWindow(controllerInfo);
+    emitControllerInfoToParentWindow(controllerInfo, true);
   } catch (e) {
     // hack so this shows after listener trigger
     setTimeout(() => {
-      let message = e.message;
+      setIsFlashing(false);
+      emitFailToParentWindow(e?.message);
+
+      if (controllerInfo.mac) {
+        emitControllerInfoToParentWindow(controllerInfo, false);
+      }
+
+      let message = e?.message;
       message += ". Please reconnect controller and try again by clicking (Flash controller).";
 
       document.querySelector("#msg").style.color = "red";
       document.querySelector("#msg").innerHTML = "Error: " + message;
       espLoaderTerminal.writeln(`Error: ${message}`);
-
-      emitControllerInfoToParentWindow(controllerInfo);
     }, 0);
   } finally {
     // Hide progress bars and show erase buttons
@@ -554,11 +561,46 @@ initFiles();
  *
  * @param controllerInfo this allows integration into other web apps
  */
-function emitControllerInfoToParentWindow(controllerInfo) {
-  window.parent.postMessage(JSON.stringify({ type: "controller-info", controllerInfo }), "*");
+function emitControllerInfoToParentWindow(controllerInfo, success = false) {
+  window.parent.postMessage(JSON.stringify({ type: "controller-info", controllerInfo, success }), "*");
 
   controllerInfo.mac = null;
   controllerInfo.chip = null;
   controllerInfo.features = null;
   controllerInfo.crystal = null;
 }
+window.emitControllerInfoToParentWindow = emitControllerInfoToParentWindow;
+
+function emitResetToParentWindow() {
+  window.parent.postMessage(JSON.stringify({ type: "reset" }), "*");
+}
+
+function emitFailToParentWindow(message: string) {
+  window.parent.postMessage(JSON.stringify({ type: "fail", message }), "*");
+}
+
+function outerWindowMessageHandler(event) {
+  try {
+    let { data } = event;
+    if (!data?.includes?.("console-message")) return;
+    data = JSON.parse(data);
+
+    if (data.type === "console-message") {
+      const title = data?.title;
+      const titleColor = data?.titleColor;
+
+      const message = data?.message;
+
+      if (title && titleColor) {
+        document.querySelector("#msg").style.color = titleColor;
+        document.querySelector("#msg").innerHTML = title;
+      }
+
+      term.write(message);
+    }
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+window.addEventListener("message", outerWindowMessageHandler);
