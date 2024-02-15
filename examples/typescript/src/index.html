@@ -28,6 +28,12 @@
       input[type="file"] {
         color: white !important;
       }
+      input[type="text"],
+      .thead-light,
+      select {
+        color: black !important;
+      }
+
       .header-container {
         display: flex;
         align-items: center;
@@ -56,12 +62,14 @@
         Instructions for flashing a controller
       </a>
 
-      <details>
+      <details id="advanced-controls">
         <summary>
           <div class="btn btn-secondary btn-sm d-block mx-auto" style="background-color: gray">Advanced controls</div>
         </summary>
         <div id="program">
           <h3>Program</h3>
+          <h5 style="color: orangered">Use this only if you know what are you doing.</h5>
+
           <label for="baudrates" id="lblBaudrate">Baudrate:</label>
           <label style="display: none" id="lblConnTo">Connected to device: </label>
           <select name="baudrates" id="baudrates">
