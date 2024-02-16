@@ -50,22 +50,9 @@ function setIsFlashing(is_flashing) {
   isFlashing = is_flashing;
 
   if (isFlashing) {
-    document.querySelector("#advanced-controls").style.display = "none";
     programButton.setAttribute("disabled", "true");
   } else {
-    document.querySelector("#advanced-controls").style.display = "block";
-
     programButton.removeAttribute("disabled");
-
-    baudrates.style.display = "initial";
-    connectButton.style.display = "initial";
-    disconnectButton.style.display = "none";
-    traceButton.style.display = "none";
-    eraseButton.style.display = "none";
-    lblConnTo.style.display = "none";
-    filesDiv.style.display = "none";
-    alertDiv.style.display = "none";
-    consoleDiv.style.display = "initial";
   }
 }
 
@@ -121,9 +108,6 @@ const espLoaderTerminal = {
   clean() {
     term.clear();
   },
-  clear() {
-    term.clear();
-  },
   writeLine(data) {
     term.writeln(data);
     controllerInfo.flashLog += data + "\n";
@@ -135,6 +119,9 @@ const espLoaderTerminal = {
   writeln(data) {
     term.writeln(data);
     controllerInfo.flashLog += data + "\n";
+  },
+  clear() {
+    term.clear();
   },
 };
 
@@ -183,6 +170,15 @@ async function connectHandler() {
     // await esploader.flashId();
   } catch (e) {
     console.error(e);
+    espLoaderTerminal.write(`\n`);
+    if (e.message?.includes("Failed to connect with the device")) {
+      setTimeout(() => {
+        document.querySelector("#msg").style.color = "red";
+        document.querySelector("#msg").innerHTML =
+          "Failed to connect with the device" +
+          ". Please reconnect controller and try again by clicking (Flash controller).";
+      }, 50);
+    }
     if (!e.message?.includes("The port is already open")) espLoaderTerminal.writeln(`Error: ${e.message}`);
   }
 
