@@ -19,6 +19,17 @@ const lblConsoleFor = document.getElementById("lblConsoleFor");
 const lblConnTo = document.getElementById("lblConnTo");
 const table = document.getElementById("fileTable") as HTMLTableElement;
 const alertDiv = document.getElementById("alertDiv");
+const msgElement = document.getElementById("msg") as HTMLElement;
+
+/**
+ * Set the status message displayed to the user
+ * @param message - The message text to display
+ * @param color - The color of the message (e.g., 'red', 'green', 'yellow', 'white')
+ */
+function setStatusMessage(message: string, color = "white") {
+  msgElement.style.color = color;
+  msgElement.innerHTML = message;
+}
 
 // This is a frontend example of Esptool-JS using local bundle file
 // To optimize use a CDN hosted version like
@@ -28,6 +39,21 @@ import { ESPLoader, FlashOptions, LoaderOptions, Transport } from "../../../lib"
 declare let Terminal; // Terminal is imported in HTML script
 declare let CryptoJS; // CryptoJS is imported in HTML script
 
+// Extend Window interface for custom properties
+declare global {
+  interface Window {
+    term: typeof term;
+    controllerInfo: typeof controllerInfo;
+    device: SerialPort | null;
+    emitControllerInfoToParentWindow: typeof emitControllerInfoToParentWindow;
+  }
+}
+
+// Extend HTMLInputElement to include custom data property
+interface HTMLInputElementWithData extends HTMLInputElement {
+  data?: string;
+}
+
 const term = new Terminal({ cols: 120, rows: 24, fontSize: 14 });
 
 term.open(terminal);
@@ -36,6 +62,7 @@ let device = null;
 let transport: Transport;
 let chip: string = null;
 let esploader: ESPLoader;
+let selectedPortInfo = null; // Store info about the port user selected this session
 
 const controllerInfo = {
   mac: null,
@@ -70,8 +97,9 @@ eraseButton.style.display = "none";
 consoleStopButton.style.display = "none";
 filesDiv.style.display = "initial";
 
-document.querySelector("#msg").innerHTML =
-  "Click flash controller, select device and then hold till flash is complete... <br />Make sure the Serial port is being opened exclusively by this website.";
+setStatusMessage(
+  "Click flash controller, select device and then hold till flash is complete... <br />Make sure the Serial port is being opened exclusively by this website.",
+);
 
 /**
  * The built in Event object.
@@ -144,31 +172,62 @@ connectButton.onclick = connectHandler;
  *
  */
 async function connectHandler() {
-  // Request port only if we don't have one yet
+  setStatusMessage("Connecting...", "yellow");
+
+  // Get device if we don't have one
   if (device === null) {
-    device = await navigator.serial.requestPort({});
+    if (selectedPortInfo) {
+      // User already selected a port this session - try to find it without popup
+      const ports = await navigator.serial.getPorts();
+      const matchingPort = ports.find((port) => {
+        const info = port.getInfo();
+        return info.usbVendorId === selectedPortInfo.usbVendorId && info.usbProductId === selectedPortInfo.usbProductId;
+      });
+      if (matchingPort) {
+        device = matchingPort;
+      } else {
+        // Port no longer available, need to show popup again
+        device = await navigator.serial.requestPort({});
+        selectedPortInfo = device.getInfo();
+      }
+    } else {
+      // First connection this session - always show popup
+      device = await navigator.serial.requestPort({});
+      selectedPortInfo = device.getInfo();
+    }
     device.addEventListener("disconnect", () => {
       const e = { message: "The device has been disconnected." };
 
       cleanUp();
-      document.querySelector("#msg").style.color = "yellow";
-      document.querySelector("#msg").innerHTML = "Warn: " + e.message;
+      setStatusMessage("Warn: " + e.message, "yellow");
       espLoaderTerminal.writeln(`Warn: ${e.message}`);
     });
   }
 
-  // Always recreate transport (it gets nulled after flash)
+  // Clean up any existing transport before creating new one
+  if (transport) {
+    try {
+      await transport.disconnect();
+    } catch (e) {
+      // Ignore disconnect errors
+    }
+    transport = null;
+  }
+
+  // Always recreate transport
   transport = new Transport(device, true);
 
   setIsFlashing(true);
   window.device = device;
 
   try {
-    const flashOptions = {
+    const flashOptions: LoaderOptions = {
       transport,
       baudrate: parseInt(mainBaudrate.value),
       terminal: espLoaderTerminal,
-    } as LoaderOptions;
+      romBaudrate: 115200,
+      enableTracing: false,
+    };
 
     // reset logs
     controllerInfo.flashLog = "";
@@ -184,17 +243,30 @@ async function connectHandler() {
     // Temporarily broken
     // await esploader.flashId();
   } catch (e) {
+    // Clean up serial port on error so it can be reused
+    try {
+      if (transport) await transport.disconnect();
+    } catch (disconnectError) {
+      // Ignore disconnect errors
+    }
+    transport = null;
+    device = null;
+    chip = null;
+    // Clear port info only on device lost errors to force fresh selection
+    if (e.message?.includes("lost")) {
+      selectedPortInfo = null;
+    }
+    setIsFlashing(false);
+
     console.error(e);
     espLoaderTerminal.write(`\n`);
-    if (e.message?.includes("Failed to connect with the device")) {
+    if (e.message?.includes("Failed to connect") || e.message?.includes("lost")) {
       setTimeout(() => {
-        document.querySelector("#msg").style.color = "red";
-        document.querySelector("#msg").innerHTML =
-          "Failed to connect with the device" +
-          ". Please reconnect controller and try again by clicking (Flash controller).";
+        setStatusMessage("Connection failed. Please try again by clicking (Flash controller).", "red");
       }, 50);
     }
     if (!e.message?.includes("The port is already open")) espLoaderTerminal.writeln(`Error: ${e.message}`);
+    return; // Exit early on error
   }
 
   console.log("Settings done for :" + chip);
@@ -244,40 +316,68 @@ eraseButton.onclick = async () => {
  */
 eraseControllerButton.onclick = async () => {
   setIsFlashing(true);
-  document.querySelector("#msg").style.color = "yellow";
-  document.querySelector("#msg").innerHTML = "Connecting to device...";
+  setStatusMessage("Connecting to device...", "yellow");
 
   try {
-    // Request port only if we don't have one yet
+    // Get device if we don't have one
     if (device === null) {
-      device = await navigator.serial.requestPort({});
+      if (selectedPortInfo) {
+        // User already selected a port this session - try to find it without popup
+        const ports = await navigator.serial.getPorts();
+        const matchingPort = ports.find((port) => {
+          const info = port.getInfo();
+          return (
+            info.usbVendorId === selectedPortInfo.usbVendorId && info.usbProductId === selectedPortInfo.usbProductId
+          );
+        });
+        if (matchingPort) {
+          device = matchingPort;
+        } else {
+          // Port no longer available, need to show popup again
+          device = await navigator.serial.requestPort({});
+          selectedPortInfo = device.getInfo();
+        }
+      } else {
+        // First connection this session - always show popup
+        device = await navigator.serial.requestPort({});
+        selectedPortInfo = device.getInfo();
+      }
       device.addEventListener("disconnect", () => {
         cleanUp();
-        document.querySelector("#msg").style.color = "yellow";
-        document.querySelector("#msg").innerHTML = "Device disconnected.";
+        setStatusMessage("Device disconnected.", "yellow");
       });
+    }
+
+    // Clean up any existing transport before creating new one
+    if (transport) {
+      try {
+        await transport.disconnect();
+      } catch (e) {
+        // Ignore disconnect errors
+      }
+      transport = null;
     }
 
     // Always recreate transport
     transport = new Transport(device, true);
 
-    const flashOptions = {
+    const flashOptions: LoaderOptions = {
       transport,
       baudrate: parseInt(mainBaudrate.value),
       terminal: espLoaderTerminal,
-    } as LoaderOptions;
+      romBaudrate: 115200,
+      enableTracing: false,
+    };
 
     controllerInfo.flashLog = "";
     esploader = new ESPLoader(flashOptions);
     await esploader.main();
 
-    document.querySelector("#msg").style.color = "yellow";
-    document.querySelector("#msg").innerHTML = "Erasing flash... This may take a while.";
+    setStatusMessage("Erasing flash... This may take a while.", "yellow");
 
     await esploader.eraseFlash();
 
-    document.querySelector("#msg").style.color = "green";
-    document.querySelector("#msg").innerHTML = "Flash erased successfully!";
+    setStatusMessage("Flash erased successfully!", "green");
     espLoaderTerminal.writeln("Flash erased successfully!");
 
     await esploader.hardReset();
@@ -287,9 +387,22 @@ eraseControllerButton.onclick = async () => {
     transport = null;
     chip = null;
   } catch (e) {
+    // Clean up serial port on error so it can be reused
+    try {
+      if (transport) await transport.disconnect();
+    } catch (disconnectError) {
+      // Ignore disconnect errors
+    }
+    transport = null;
+    device = null;
+    chip = null;
+    // Clear port info only on device lost errors to force fresh selection
+    if (e?.message?.includes("lost")) {
+      selectedPortInfo = null;
+    }
+
     console.error(e);
-    document.querySelector("#msg").style.color = "red";
-    document.querySelector("#msg").innerHTML = "Error: " + e.message;
+    setStatusMessage("Error: " + e.message + ". Please try again.", "red");
     espLoaderTerminal.writeln(`Error: ${e.message}`);
   } finally {
     setIsFlashing(false);
@@ -363,10 +476,10 @@ function cleanUp() {
   device = null;
   transport = null;
   chip = null;
+  // Keep selectedPortInfo so we can reconnect to same device without popup
   setIsFlashing(false);
 
-  document.querySelector("#msg").style.color = "white";
-  document.querySelector("#msg").innerHTML = "";
+  setStatusMessage("");
 }
 
 disconnectButton.onclick = async () => {
@@ -466,8 +579,7 @@ programButton.onclick = async () => {
     return;
   }
 
-  document.querySelector("#msg").style.color = "lightgray";
-  document.querySelector("#msg").innerHTML = "Firmware flashing in progress...";
+  setStatusMessage("Firmware flashing in progress...", "lightgray");
 
   // Hide error message
   alertDiv.style.display = "none";
@@ -513,14 +625,27 @@ programButton.onclick = async () => {
     chip = null;
     setIsFlashing(false);
 
-    document.querySelector("#msg").style.color = "green";
-    document.querySelector("#msg").innerHTML = "Firmware flashed successfully";
+    setStatusMessage("Firmware flashed successfully", "green");
 
     // moznost pridat barvicky \x1b[1;32m zelena \x1b[0m bila
     espLoaderTerminal.writeln("Flash success");
 
     emitControllerInfoToParentWindow(controllerInfo, true);
   } catch (e) {
+    // Clean up serial port on error so it can be reused
+    try {
+      if (transport) await transport.disconnect();
+    } catch (disconnectError) {
+      // Ignore disconnect errors
+    }
+    transport = null;
+    device = null;
+    chip = null;
+    // Clear port info only on device lost errors to force fresh selection
+    if (e?.message?.includes("lost")) {
+      selectedPortInfo = null;
+    }
+
     // hack so this shows after listener trigger
     setTimeout(() => {
       setIsFlashing(false);
@@ -531,10 +656,9 @@ programButton.onclick = async () => {
       }
 
       let message = e?.message;
-      message += ". Please reconnect controller and try again by clicking (Flash controller).";
+      message += ". Please try again by clicking (Flash controller).";
 
-      document.querySelector("#msg").style.color = "red";
-      document.querySelector("#msg").innerHTML = "Error: " + message;
+      setStatusMessage("Error: " + message, "red");
       espLoaderTerminal.writeln(`Error: ${message}`);
     }, 0);
   } finally {
@@ -565,7 +689,7 @@ async function addFile(flashAddress, file) {
 
   // Column 2 - File selector
   const cell2 = row.insertCell(1);
-  const element2 = document.createElement("input");
+  const element2 = document.createElement("input") as HTMLInputElementWithData;
   element2.type = "file";
   element2.id = "selectFile" + rowCount;
   element2.name = "selected_File" + rowCount;
@@ -576,8 +700,8 @@ async function addFile(flashAddress, file) {
   if (file) {
     setFilesInput(element2, file);
     const data = await handleFileSelect({ target: { files: [file] } });
-    file.data = data;
-    element2.data = data;
+    (file as File & { data: string }).data = data as string;
+    element2.data = data as string;
   }
 
   element2.addEventListener("change", handleFileSelect, false);
@@ -657,22 +781,19 @@ async function initFiles() {
   const flashAddresses = ["0x1000", "0x8000", "0xe000", "0x10000"];
 
   setIsFlashing(true);
-  document.querySelector("#msg").style.color = "yellow";
-  document.querySelector("#msg").innerHTML = "Loading fw files...";
+  setStatusMessage("Loading fw files...", "yellow");
 
   for (let i = 0; i < fileUrls.length; i++) {
     const file = await fetchFile(fileUrls[i]);
     if (!file || file.size === 0) {
-      document.querySelector("#msg").style.color = "red";
-      document.querySelector("#msg").innerHTML = "Error: FW files not found, please contact support +420732715743";
+      setStatusMessage("Error: FW files not found, please contact support +420732715743", "red");
       setIsFlashing(false);
       return;
     }
     await addFile(flashAddresses[i], file);
   }
 
-  document.querySelector("#msg").style.color = "green";
-  document.querySelector("#msg").innerHTML = "Ready...";
+  setStatusMessage("Ready to flash", "green");
   setIsFlashing(false);
 }
 
@@ -725,8 +846,7 @@ function outerWindowMessageHandler(event) {
       const message = data?.message;
 
       if (title && titleColor) {
-        document.querySelector("#msg").style.color = titleColor;
-        document.querySelector("#msg").innerHTML = title;
+        setStatusMessage(title, titleColor);
       }
 
       term.write(message);
