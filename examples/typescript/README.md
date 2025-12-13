@@ -1,12 +1,13 @@
 # Using Esptool-JS in a Typescript environment
 
-This example has example code in `src/index.ts` which is called in the `index.html`. We are using Parcel to bundle resulting files for simplicity here.
+This example contains code in `src/index.ts` which is invoked from `index.html`. We use Parcel to bundle resulting files for simplicity.
 
-**NOTE:** This example is linked to the documentation generated from the source code. You could remove such dependency if necessary by remove `./docs/index.html` from `src/index.html` if you need so. NPM commands used below will generate documentation as well.
+**NOTE:** This example is linked to the documentation generated from the source code. You may remove that dependency by removing `./docs/index.html` from `src/index.html` if needed. The NPM commands below will also generate documentation.
 
 ## Prerequirement
 
-Put FW files (bootloader.bin, firmware.bin...) into `assets/fw` directory 
+Put the firmware binary files (e.g., `bootloader.bin`, `firmware.bin`, etc.) into the `static/fw` directory.  
+**Note:** The application loads firmware from `static/fw` at runtime, so make sure your FW files are present there.
 
 ## Testing it locally
 
@@ -15,7 +16,7 @@ npm install
 npm run dev
 ```
 
-Then open http://localhost:1234 in Chrome or Edge. The `npm run dev` step will call Parcel which start a local http server serving `index.html` with compiled `index.ts`.
+Then open http://localhost:1234 in Chrome or Edge. The `npm run dev` step will start Parcel, which launches a local HTTP server serving `index.html` with compiled `index.ts`.
 
 ## Generate build to publish
 
@@ -24,4 +25,4 @@ npm install
 npm run build
 ```
 
-Copy the content of `dist` to your static pages service like Github pages.
+Copy the contents of `dist` to your static pages service (such as Github Pages).

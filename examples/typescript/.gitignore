@@ -2,3 +2,4 @@ node/modules
 .parcel-cache
 dist
 package-lock.json
+static/fw/*.bin

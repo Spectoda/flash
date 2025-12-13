@@ -41,6 +41,82 @@
         gap: 12px;
         padding: 16px;
       }
+
+      .action-bar {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-top: 24px;
+        padding: 16px;
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 8px;
+      }
+
+      .action-bar select {
+        padding: 10px 16px;
+        font-size: 14px;
+        border-radius: 6px;
+        border: 1px solid #444;
+        background: #2a2d3a;
+        color: white !important;
+        cursor: pointer;
+      }
+
+      .action-bar .btn-flash {
+        padding: 12px 28px;
+        font-size: 16px;
+        font-weight: 600;
+        background: linear-gradient(135deg, #5e81f2, #4a6cd4);
+        border: none;
+        border-radius: 6px;
+        color: white;
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+
+      .action-bar .btn-flash:hover:not(:disabled) {
+        background: linear-gradient(135deg, #6b8ef5, #5777e0);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(94, 129, 242, 0.3);
+      }
+
+      .action-bar .btn-erase {
+        padding: 12px 20px;
+        font-size: 14px;
+        font-weight: 500;
+        background: #dc3545;
+        border: none;
+        border-radius: 6px;
+        color: white;
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+
+      .action-bar .btn-erase:hover:not(:disabled) {
+        background: #c82333;
+        transform: translateY(-1px);
+      }
+
+      .action-bar .btn-flash:disabled,
+      .action-bar .btn-erase:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        transform: none;
+      }
+
+      .baudrate-group {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .baudrate-group label {
+        font-size: 13px;
+        color: #aaa !important;
+        margin: 0;
+      }
     </style>
   </head>
   <body>
@@ -115,16 +191,28 @@
           <input class="btn btn-info" type="button" id="resetButton" value="Reset" />
         </div>
       </details>
-      <input
-        class="btn btn-primary btn-lg d-block mx-auto"
-        style="display: block; margin-top: 24px; background-color: #5e81f2"
-        type="button"
-        id="programButton"
-        value="Flash controller"
-      />
+
+      <div class="action-bar">
+        <div class="baudrate-group">
+          <label for="mainBaudrate">Baudrate:</label>
+          <select name="mainBaudrate" id="mainBaudrate">
+            <option value="921600">921600</option>
+            <option value="460800">460800</option>
+            <option value="230400">230400</option>
+            <option value="115200">115200</option>
+          </select>
+        </div>
+        <button class="btn-flash" type="button" id="programButton">
+          Flash Controller
+        </button>
+        <button class="btn-erase" type="button" id="eraseControllerButton">
+          Erase Flash
+        </button>
+      </div>
+
       <div
         id="msg"
-        style="margin: 16px; font-size: 13px; margin-left: auto; margin-right: auto; color: lightgray"
+        style="margin: 16px; font-size: 13px; margin-left: auto; margin-right: auto; color: lightgray; text-align: center"
       ></div>
 
       <div class="terminal-wrapper">

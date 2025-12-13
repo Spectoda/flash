@@ -1,4 +1,5 @@
 const baudrates = document.getElementById("baudrates") as HTMLSelectElement;
+const mainBaudrate = document.getElementById("mainBaudrate") as HTMLSelectElement;
 const connectButton = document.getElementById("connectButton") as HTMLButtonElement;
 const traceButton = document.getElementById("copyTraceButton") as HTMLButtonElement;
 const disconnectButton = document.getElementById("disconnectButton") as HTMLButtonElement;
@@ -6,8 +7,9 @@ const resetButton = document.getElementById("resetButton") as HTMLButtonElement;
 const consoleStartButton = document.getElementById("consoleStartButton") as HTMLButtonElement;
 const consoleStopButton = document.getElementById("consoleStopButton") as HTMLButtonElement;
 const eraseButton = document.getElementById("eraseButton") as HTMLButtonElement;
+const eraseControllerButton = document.getElementById("eraseControllerButton") as HTMLButtonElement;
 const addFileButton = document.getElementById("addFile") as HTMLButtonElement;
-const programButton = document.getElementById("programButton");
+const programButton = document.getElementById("programButton") as HTMLButtonElement;
 const filesDiv = document.getElementById("files");
 const terminal = document.getElementById("terminal");
 const programDiv = document.getElementById("program");
@@ -46,13 +48,19 @@ window.term = term;
 window.controllerInfo = controllerInfo;
 
 let isFlashing = false;
+/**
+ *
+ * @param is_flashing
+ */
 function setIsFlashing(is_flashing) {
   isFlashing = is_flashing;
 
   if (isFlashing) {
     programButton.setAttribute("disabled", "true");
+    eraseControllerButton.setAttribute("disabled", "true");
   } else {
     programButton.removeAttribute("disabled");
+    eraseControllerButton.removeAttribute("disabled");
   }
 }
 
@@ -84,13 +92,18 @@ function handleFileSelect(evt) {
       return;
     }
 
-    console.log("File selected: " + file.name);
     const reader = new FileReader();
 
     reader.onload = (ev: ProgressEvent<FileReader>) => {
-      console.log("File loaded: " + file.name);
       if (ev.target.result) {
-        resolve(ev.target.result);
+        // Convert ArrayBuffer to binary string properly
+        const arrayBuffer = ev.target.result as ArrayBuffer;
+        const bytes = new Uint8Array(arrayBuffer);
+        let binaryString = "";
+        for (let i = 0; i < bytes.length; i++) {
+          binaryString += String.fromCharCode(bytes[i]);
+        }
+        resolve(binaryString);
       } else {
         reject("FileReader did not return a result");
       }
@@ -100,7 +113,7 @@ function handleFileSelect(evt) {
       reject("Error occurred while reading the file");
     };
 
-    reader.readAsBinaryString(file);
+    reader.readAsArrayBuffer(file);
   });
 }
 
@@ -127,9 +140,12 @@ const espLoaderTerminal = {
 
 connectButton.onclick = connectHandler;
 
+/**
+ *
+ */
 async function connectHandler() {
+  // Request port only if we don't have one yet
   if (device === null) {
-    cleanUp();
     device = await navigator.serial.requestPort({});
     device.addEventListener("disconnect", () => {
       const e = { message: "The device has been disconnected." };
@@ -139,19 +155,18 @@ async function connectHandler() {
       document.querySelector("#msg").innerHTML = "Warn: " + e.message;
       espLoaderTerminal.writeln(`Warn: ${e.message}`);
     });
-
-    transport = new Transport(device, true);
   }
+
+  // Always recreate transport (it gets nulled after flash)
+  transport = new Transport(device, true);
+
   setIsFlashing(true);
   window.device = device;
 
   try {
-    await device.close().catch((e) => {
-      console.error(e);
-    });
     const flashOptions = {
       transport,
-      baudrate: parseInt(baudrates.value),
+      baudrate: parseInt(mainBaudrate.value),
       terminal: espLoaderTerminal,
     } as LoaderOptions;
 
@@ -221,6 +236,63 @@ eraseButton.onclick = async () => {
     espLoaderTerminal.writeln(`Error: ${e.message}`);
   } finally {
     eraseButton.disabled = false;
+  }
+};
+
+/**
+ * Erase controller flash - connects, erases, and reports result
+ */
+eraseControllerButton.onclick = async () => {
+  setIsFlashing(true);
+  document.querySelector("#msg").style.color = "yellow";
+  document.querySelector("#msg").innerHTML = "Connecting to device...";
+
+  try {
+    // Request port only if we don't have one yet
+    if (device === null) {
+      device = await navigator.serial.requestPort({});
+      device.addEventListener("disconnect", () => {
+        cleanUp();
+        document.querySelector("#msg").style.color = "yellow";
+        document.querySelector("#msg").innerHTML = "Device disconnected.";
+      });
+    }
+
+    // Always recreate transport
+    transport = new Transport(device, true);
+
+    const flashOptions = {
+      transport,
+      baudrate: parseInt(mainBaudrate.value),
+      terminal: espLoaderTerminal,
+    } as LoaderOptions;
+
+    controllerInfo.flashLog = "";
+    esploader = new ESPLoader(flashOptions);
+    await esploader.main();
+
+    document.querySelector("#msg").style.color = "yellow";
+    document.querySelector("#msg").innerHTML = "Erasing flash... This may take a while.";
+
+    await esploader.eraseFlash();
+
+    document.querySelector("#msg").style.color = "green";
+    document.querySelector("#msg").innerHTML = "Flash erased successfully!";
+    espLoaderTerminal.writeln("Flash erased successfully!");
+
+    await esploader.hardReset();
+
+    // Disconnect transport but keep device for reuse
+    if (transport) await transport.disconnect();
+    transport = null;
+    chip = null;
+  } catch (e) {
+    console.error(e);
+    document.querySelector("#msg").style.color = "red";
+    document.querySelector("#msg").innerHTML = "Error: " + e.message;
+    espLoaderTerminal.writeln(`Error: ${e.message}`);
+  } finally {
+    setIsFlashing(false);
   }
 };
 
@@ -434,10 +506,16 @@ programButton.onclick = async () => {
     } as FlashOptions;
     await esploader.writeFlash(flashOptions);
     await esploader.hardReset();
+
+    // Disconnect transport but keep device for reuse
+    if (transport) await transport.disconnect();
+    transport = null;
+    chip = null;
+    setIsFlashing(false);
+
     document.querySelector("#msg").style.color = "green";
     document.querySelector("#msg").innerHTML = "Firmware flashed successfully";
 
-    setIsFlashing(false);
     // moznost pridat barvicky \x1b[1;32m zelena \x1b[0m bila
     espLoaderTerminal.writeln("Flash success");
 
@@ -468,6 +546,11 @@ programButton.onclick = async () => {
   }
 };
 
+/**
+ *
+ * @param flashAddress
+ * @param file
+ */
 async function addFile(flashAddress, file) {
   const rowCount = table.rows.length;
   const row = table.insertRow(rowCount);
@@ -492,7 +575,7 @@ async function addFile(flashAddress, file) {
   // }
   if (file) {
     setFilesInput(element2, file);
-    let data = await handleFileSelect({ target: { files: [file] } });
+    const data = await handleFileSelect({ target: { files: [file] } });
     file.data = data;
     element2.data = data;
   }
@@ -522,12 +605,27 @@ async function addFile(flashAddress, file) {
   }
 }
 
+/**
+ *
+ * @param url
+ */
 async function fetchFile(url) {
   try {
-    const response = await fetch(url);
+    // Add cache-busting timestamp to always fetch fresh files
+    const cacheBustUrl = url + (url.includes("?") ? "&" : "?") + "t=" + Date.now();
+    const response = await fetch(cacheBustUrl, { cache: "no-store" });
+
+    // Check if the response is actually a binary file (not HTML fallback)
+    const contentType = response.headers.get("content-type") || "";
+    if (!response.ok || contentType.includes("text/html")) {
+      console.error("File not found or invalid response:", url);
+      return null;
+    }
+
     const blob = await response.blob();
-    let file = new File([blob], url.split("/").pop(), { type: blob.type });
-    console.log(blob);
+    // Extract clean filename without query params
+    const filename = url.split("/").pop().split("?")[0];
+    const file = new File([blob], filename, { type: blob.type });
     return file;
   } catch (error) {
     console.error("Error fetching file:", error);
@@ -535,6 +633,11 @@ async function fetchFile(url) {
   }
 }
 
+/**
+ *
+ * @param inputElement
+ * @param file
+ */
 function setFilesInput(inputElement, file) {
   const dataTransfer = new DataTransfer();
   dataTransfer.items.add(file);
@@ -544,26 +647,32 @@ function setFilesInput(inputElement, file) {
   inputElement.files = dataTransfer.files;
 }
 
+/**
+ *
+ */
 async function initFiles() {
+  // Fetch firmware files from static folder (not bundled, always fresh)
   const fileUrls = ["/fw/bootloader.bin", "/fw/partitions.bin", "/fw/ota_data_initial.bin", "/fw/firmware.bin"];
 
   const flashAddresses = ["0x1000", "0x8000", "0xe000", "0x10000"];
 
+  setIsFlashing(true);
+  document.querySelector("#msg").style.color = "yellow";
+  document.querySelector("#msg").innerHTML = "Loading fw files...";
+
   for (let i = 0; i < fileUrls.length; i++) {
     const file = await fetchFile(fileUrls[i]);
-    setIsFlashing(true);
-    document.querySelector("#msg").style.color = "yellow";
-    document.querySelector("#msg").innerHTML = "Loading fw files...";
-    addFile(flashAddresses[i], file);
-    if (file.type !== "application/octet-stream") {
+    if (!file || file.size === 0) {
       document.querySelector("#msg").style.color = "red";
-      document.querySelector("#msg").innerHTML = "Error: " + "FW files not found, please contact support +420730659547";
+      document.querySelector("#msg").innerHTML = "Error: FW files not found, please contact support +420732715743";
+      setIsFlashing(false);
       return;
     }
+    await addFile(flashAddresses[i], file);
   }
+
   document.querySelector("#msg").style.color = "green";
   document.querySelector("#msg").innerHTML = "Ready...";
-
   setIsFlashing(false);
 }
 
@@ -572,6 +681,7 @@ initFiles();
 /**
  *
  * @param controllerInfo this allows integration into other web apps
+ * @param success
  */
 function emitControllerInfoToParentWindow(controllerInfo, success = false) {
   window.parent.postMessage(JSON.stringify({ type: "controller-info", controllerInfo, success }), "*");
@@ -583,14 +693,25 @@ function emitControllerInfoToParentWindow(controllerInfo, success = false) {
 }
 window.emitControllerInfoToParentWindow = emitControllerInfoToParentWindow;
 
+/**
+ *
+ */
 function emitResetToParentWindow() {
   window.parent.postMessage(JSON.stringify({ type: "reset" }), "*");
 }
 
+/**
+ *
+ * @param message
+ */
 function emitFailToParentWindow(message: string) {
   window.parent.postMessage(JSON.stringify({ type: "fail", message }), "*");
 }
 
+/**
+ *
+ * @param event
+ */
 function outerWindowMessageHandler(event) {
   try {
     let { data } = event;
