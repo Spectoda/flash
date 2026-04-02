@@ -51,7 +51,7 @@ declare global {
 
 // Extend HTMLInputElement to include custom data property
 interface HTMLInputElementWithData extends HTMLInputElement {
-  data?: string;
+  data?: Uint8Array;
 }
 
 const term = new Terminal({ cols: 120, rows: 24, fontSize: 14 });
@@ -113,7 +113,8 @@ setStatusMessage(
  */
 function handleFileSelect(evt) {
   return new Promise((resolve, reject) => {
-    const file = evt.target.files[0];
+    const input = evt.target as HTMLInputElementWithData;
+    const file = input.files?.[0];
 
     if (!file) {
       reject("No file selected");
@@ -124,14 +125,10 @@ function handleFileSelect(evt) {
 
     reader.onload = (ev: ProgressEvent<FileReader>) => {
       if (ev.target.result) {
-        // Convert ArrayBuffer to binary string properly
         const arrayBuffer = ev.target.result as ArrayBuffer;
         const bytes = new Uint8Array(arrayBuffer);
-        let binaryString = "";
-        for (let i = 0; i < bytes.length; i++) {
-          binaryString += String.fromCharCode(bytes[i]);
-        }
-        resolve(binaryString);
+        input.data = bytes;
+        resolve(bytes);
       } else {
         reject("FileReader did not return a result");
       }
@@ -165,6 +162,15 @@ const espLoaderTerminal = {
     term.clear();
   },
 };
+
+async function rebootIntoFirmware() {
+  if (!transport) return;
+
+  await transport.setDTR(false);
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  await transport.setDTR(true);
+  await new Promise((resolve) => setTimeout(resolve, 300));
+}
 
 connectButton.onclick = connectHandler;
 
@@ -380,7 +386,7 @@ eraseControllerButton.onclick = async () => {
     setStatusMessage("Flash erased successfully!", "green");
     espLoaderTerminal.writeln("Flash erased successfully!");
 
-    await esploader.hardReset();
+    await rebootIntoFirmware();
 
     // Disconnect transport but keep device for reuse
     if (transport) await transport.disconnect();
@@ -593,7 +599,7 @@ programButton.onclick = async () => {
     const offSetObj = row.cells[0].childNodes[0] as HTMLInputElement;
     const offset = parseInt(offSetObj.value);
 
-    const fileObj = row.cells[1].childNodes[0] as ChildNode & { data: string };
+    const fileObj = row.cells[1].childNodes[0] as ChildNode & { data: Uint8Array };
     const progressBar = row.cells[2].childNodes[0];
 
     progressBar.textContent = "0";
@@ -608,16 +614,18 @@ programButton.onclick = async () => {
   try {
     const flashOptions: FlashOptions = {
       fileArray: fileArray,
+      flashMode: "keep",
+      flashFreq: "keep",
       flashSize: "keep",
       eraseAll: false,
       compress: true,
       reportProgress: (fileIndex, written, total) => {
         progressBars[fileIndex].value = (written / total) * 100;
       },
-      calculateMD5Hash: (image) => CryptoJS.MD5(CryptoJS.enc.Latin1.parse(image)),
+      calculateMD5Hash: (image) => CryptoJS.MD5(CryptoJS.lib.WordArray.create(image)).toString(),
     } as FlashOptions;
     await esploader.writeFlash(flashOptions);
-    await esploader.hardReset();
+    await rebootIntoFirmware();
 
     // Disconnect transport but keep device for reuse
     if (transport) await transport.disconnect();
@@ -700,8 +708,8 @@ async function addFile(flashAddress, file) {
   if (file) {
     setFilesInput(element2, file);
     const data = await handleFileSelect({ target: { files: [file] } });
-    (file as File & { data: string }).data = data as string;
-    element2.data = data as string;
+    (file as File & { data: Uint8Array }).data = data as Uint8Array;
+    element2.data = data as Uint8Array;
   }
 
   element2.addEventListener("change", handleFileSelect, false);

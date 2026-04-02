@@ -3,3 +3,4 @@ node/modules
 dist
 package-lock.json
 static/fw/*.bin
+static/fw/*.ver
