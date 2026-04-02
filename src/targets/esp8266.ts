@@ -1,6 +1,5 @@
-import { ESPLoader } from "../esploader";
-import { ROM } from "./rom";
-import ESP8266_STUB from "./stub_flasher/stub_flasher_8266.json";
+import { ESPLoader } from "../esploader.js";
+import { MemoryMapEntry, ROM } from "./rom.js";
 
 export class ESP8266ROM extends ROM {
   public CHIP_NAME = "ESP8266";
@@ -16,6 +15,9 @@ export class ESP8266ROM extends ROM {
   public BOOTLOADER_FLASH_OFFSET = 0;
   public UART_DATE_REG_ADDR = 0;
 
+  static IROM_MAP_START = 0x40200000;
+  static IROM_MAP_END = 0x40300000;
+
   public FLASH_SIZES = {
     "512KB": 0x00,
     "256KB": 0x10,
@@ -28,6 +30,20 @@ export class ESP8266ROM extends ROM {
     "16MB": 0x90,
   };
 
+  public FLASH_FREQUENCY = {
+    "80m": 0xf,
+    "40m": 0x0,
+    "26m": 0x1,
+    "20m": 0x2,
+  };
+
+  public MEMORY_MAP: MemoryMapEntry[] = [
+    [0x3ff00000, 0x3ff00010, "DPORT"],
+    [0x3ffe8000, 0x40000000, "DRAM"],
+    [0x40100000, 0x40108000, "IRAM"],
+    [0x40201010, 0x402e1010, "IROM"],
+  ];
+
   public SPI_REG_BASE = 0x60000200;
   public SPI_USR_OFFS = 0x1c;
   public SPI_USR1_OFFS = 0x20;
@@ -35,12 +51,6 @@ export class ESP8266ROM extends ROM {
   public SPI_MOSI_DLEN_OFFS = 0; // not in esp8266
   public SPI_MISO_DLEN_OFFS = 0; // not in esp8266
   public SPI_W0_OFFS = 0x40;
-
-  public TEXT_START = ESP8266_STUB.text_start;
-  public ENTRY = ESP8266_STUB.entry;
-  public DATA_START = ESP8266_STUB.data_start;
-  public ROM_DATA = ESP8266_STUB.data;
-  public ROM_TEXT = ESP8266_STUB.text;
 
   public async readEfuse(loader: ESPLoader, offset: number): Promise<number> {
     const addr = this.EFUSE_RD_REG_BASE + 4 * offset;

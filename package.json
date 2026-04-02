@@ -1,6 +1,6 @@
 {
   "name": "esptool-js",
-  "version": "0.3.2",
+  "version": "0.6.0",
   "module": "lib/index.js",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -11,7 +11,7 @@
   ],
   "scripts": {
     "build": "npm run clean && tsc && rollup --config",
-    "clean": "rimraf lib bundle.js .parcel-cache",
+    "clean": "rimraf lib bundle.js .parcel-cache esptool-js-*.tgz",
     "format": "prettier --write \"src/**/*.ts\"",
     "genDocs": "rimraf docs && typedoc",
     "lint": "eslint . --ext .ts",
@@ -28,6 +28,7 @@
     "url": "https://github.com/espressif/esptool-js/issues"
   },
   "dependencies": {
+    "atob-lite": "^2.0.0",
     "pako": "^2.1.0",
     "tslib": "^2.4.1"
   },
@@ -37,12 +38,12 @@
     "@rollup/plugin-json": "^6.0.0",
     "@rollup/plugin-node-resolve": "^15.0.1",
     "@rollup/plugin-terser": "^0.1.0",
+    "@types/atob-lite": "^2.0.2",
     "@types/pako": "^2.0.0",
     "@types/w3c-web-serial": "^1.0.3",
     "@typescript-eslint/eslint-plugin": "^5.43.0",
     "@typescript-eslint/parser": "^5.43.0",
     "babel-loader": "^9.1.0",
-    "buffer": "^5.7.1",
     "eslint": "^8.28.0",
     "eslint-config-prettier": "^8.5.0",
     "eslint-plugin-jsdoc": "^46.4.5",

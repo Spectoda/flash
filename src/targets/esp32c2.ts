@@ -2,15 +2,15 @@ import { ESPLoader } from "../esploader.js";
 import { ESP32C3ROM } from "./esp32c3.js";
 import { MemoryMapEntry } from "./rom.js";
 
-export class ESP32C6ROM extends ESP32C3ROM {
-  public CHIP_NAME = "ESP32-C6";
-  public IMAGE_CHIP_ID = 13;
-  public EFUSE_BASE = 0x600b0800;
-  public EFUSE_BLOCK1_ADDR = this.EFUSE_BASE + 0x044;
-  public MAC_EFUSE_REG = this.EFUSE_BASE + 0x044;
-  public UART_CLKDIV_REG = 0x3ff40014;
+export class ESP32C2ROM extends ESP32C3ROM {
+  public CHIP_NAME = "ESP32-C2";
+  public IMAGE_CHIP_ID = 12;
+  public EFUSE_BASE = 0x60008800;
+  public MAC_EFUSE_REG = this.EFUSE_BASE + 0x040;
+  public UART_CLKDIV_REG = 0x60000014;
   public UART_CLKDIV_MASK = 0xfffff;
   public UART_DATE_REG_ADDR = 0x6000007c;
+  public XTAL_CLK_DIVIDER = 1;
 
   public FLASH_WRITE_SIZE = 0x400;
   public BOOTLOADER_FLASH_OFFSET = 0;
@@ -24,59 +24,74 @@ export class ESP32C6ROM extends ESP32C3ROM {
   public SPI_W0_OFFS = 0x58;
 
   IROM_MAP_START = 0x42000000;
-  IROM_MAP_END = 0x42800000;
+  IROM_MAP_END = 0x42400000;
 
   public MEMORY_MAP: MemoryMapEntry[] = [
     [0x00000000, 0x00010000, "PADDING"],
-    [0x42000000, 0x43000000, "DROM"],
-    [0x40800000, 0x40880000, "DRAM"],
-    [0x40800000, 0x40880000, "BYTE_ACCESSIBLE"],
-    [0x4004ac00, 0x40050000, "DROM_MASK"],
-    [0x40000000, 0x4004ac00, "IROM_MASK"],
-    [0x42000000, 0x43000000, "IROM"],
-    [0x40800000, 0x40880000, "IRAM"],
-    [0x50000000, 0x50004000, "RTC_IRAM"],
-    [0x50000000, 0x50004000, "RTC_DRAM"],
-    [0x600fe000, 0x60100000, "MEM_INTERNAL2"],
+    [0x3c000000, 0x3c400000, "DROM"],
+    [0x3fca0000, 0x3fce0000, "DRAM"],
+    [0x3fc88000, 0x3fd00000, "BYTE_ACCESSIBLE"],
+    [0x3ff00000, 0x3ff50000, "DROM_MASK"],
+    [0x40000000, 0x40090000, "IROM_MASK"],
+    [0x42000000, 0x42400000, "IROM"],
+    [0x4037c000, 0x403c0000, "IRAM"],
   ];
 
-  public async getPkgVersion(loader: ESPLoader) {
-    const numWord = 3;
-    const block1Addr = this.EFUSE_BASE + 0x044;
+  public async getPkgVersion(loader: ESPLoader): Promise<number> {
+    const numWord = 1;
+    const block1Addr = this.EFUSE_BASE + 0x040;
     const addr = block1Addr + 4 * numWord;
     const word3 = await loader.readReg(addr);
-    const pkgVersion = (word3 >> 21) & 0x07;
+    const pkgVersion = (word3 >> 22) & 0x07;
     return pkgVersion;
   }
 
-  public async getChipRevision(loader: ESPLoader) {
-    const block1Addr = this.EFUSE_BASE + 0x044;
-    const numWord = 3;
-    const pos = 18;
+  public async getChipRevision(loader: ESPLoader): Promise<number> {
+    const block1Addr = this.EFUSE_BASE + 0x040;
+    const numWord = 1;
+    const pos = 20;
     const addr = block1Addr + 4 * numWord;
-    const ret = ((await loader.readReg(addr)) & (0x7 << pos)) >> pos;
+    const ret = ((await loader.readReg(addr)) & (0x03 << pos)) >> pos;
     return ret;
   }
 
   public async getChipDescription(loader: ESPLoader) {
     let desc: string;
     const pkgVer = await this.getPkgVersion(loader);
-    if (pkgVer === 0) {
-      desc = "ESP32-C6";
+    if (pkgVer === 0 || pkgVer === 1) {
+      desc = "ESP32-C2";
     } else {
-      desc = "unknown ESP32-C6";
+      desc = "unknown ESP32-C2";
     }
-    const chipRev = await this.getChipRevision(loader);
-    desc += " (revision " + chipRev + ")";
+    const chip_rev = await this.getChipRevision(loader);
+    desc += " (revision " + chip_rev + ")";
     return desc;
   }
 
   public async getChipFeatures(loader: ESPLoader) {
-    return ["Wi-Fi 6", "BT 5", "IEEE802.15.4"];
+    return ["Wi-Fi", "BLE"];
   }
 
   public async getCrystalFreq(loader: ESPLoader) {
-    return 40;
+    const uartDiv = (await loader.readReg(this.UART_CLKDIV_REG)) & this.UART_CLKDIV_MASK;
+    const etsXtal = (loader.transport.baudrate * uartDiv) / 1000000 / this.XTAL_CLK_DIVIDER;
+    let normXtal;
+    if (etsXtal > 33) {
+      normXtal = 40;
+    } else {
+      normXtal = 26;
+    }
+    if (Math.abs(normXtal - etsXtal) > 1) {
+      loader.info("WARNING: Unsupported crystal in use");
+    }
+    return normXtal;
+  }
+
+  public async changeBaudRate(loader: ESPLoader) {
+    const rom_with_26M_XTAL = await this.getCrystalFreq(loader);
+    if (rom_with_26M_XTAL === 26) {
+      loader.changeBaud();
+    }
   }
 
   public _d2h(d: number) {

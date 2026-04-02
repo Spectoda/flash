@@ -1,6 +1,5 @@
-import { ESPLoader } from "../esploader";
-import { ROM } from "./rom";
-import ESP32_STUB from "./stub_flasher/stub_flasher_32.json";
+import { ESPLoader } from "../esploader.js";
+import { MemoryMapEntry, ROM } from "./rom.js";
 
 export class ESP32ROM extends ROM {
   public CHIP_NAME = "ESP32";
@@ -12,12 +11,45 @@ export class ESP32ROM extends ROM {
   public UART_DATE_REG_ADDR = 0x60000078;
   public XTAL_CLK_DIVIDER = 1;
 
+  IROM_MAP_START = 0x400d0000;
+  IROM_MAP_END = 0x40400000;
+  DROM_MAP_START = 0x3f400000;
+  DROM_MAP_END = 0x3f800000;
+
+  public MEMORY_MAP: MemoryMapEntry[] = [
+    [0x00000000, 0x00010000, "PADDING"],
+    [0x3f400000, 0x3f800000, "DROM"],
+    [0x3f800000, 0x3fc00000, "EXTRAM_DATA"],
+    [0x3ff80000, 0x3ff82000, "RTC_DRAM"],
+    [0x3ff90000, 0x40000000, "BYTE_ACCESSIBLE"],
+    [0x3ffae000, 0x40000000, "DRAM"],
+    [0x3ffe0000, 0x3ffffffc, "DIRAM_DRAM"],
+    [0x40000000, 0x40070000, "IROM"],
+    [0x40070000, 0x40078000, "CACHE_PRO"],
+    [0x40078000, 0x40080000, "CACHE_APP"],
+    [0x40080000, 0x400a0000, "IRAM"],
+    [0x400a0000, 0x400bfffc, "DIRAM_IRAM"],
+    [0x400c0000, 0x400c2000, "RTC_IRAM"],
+    [0x400d0000, 0x40400000, "IROM"],
+    [0x50000000, 0x50002000, "RTC_DATA"],
+  ];
+
   public FLASH_SIZES: { [key: string]: number } = {
     "1MB": 0x00,
     "2MB": 0x10,
     "4MB": 0x20,
     "8MB": 0x30,
     "16MB": 0x40,
+    "32MB": 0x50,
+    "64MB": 0x60,
+    "128MB": 0x70,
+  };
+
+  public FLASH_FREQUENCY: { [key: string]: number } = {
+    "80m": 0xf,
+    "40m": 0x0,
+    "26m": 0x1,
+    "20m": 0x2,
   };
 
   public FLASH_WRITE_SIZE = 0x400;
@@ -30,12 +62,6 @@ export class ESP32ROM extends ROM {
   public SPI_W0_OFFS = 0x80;
   public SPI_MOSI_DLEN_OFFS = 0x28;
   public SPI_MISO_DLEN_OFFS = 0x2c;
-
-  public TEXT_START = ESP32_STUB.text_start;
-  public ENTRY = ESP32_STUB.entry;
-  public DATA_START = ESP32_STUB.data_start;
-  public ROM_DATA = ESP32_STUB.data;
-  public ROM_TEXT = ESP32_STUB.text;
 
   public async readEfuse(loader: ESPLoader, offset: number): Promise<number> {
     const addr = this.EFUSE_RD_REG_BASE + 4 * offset;

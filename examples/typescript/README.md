@@ -6,12 +6,12 @@ This example contains code in `src/index.ts` which is invoked from `index.html`.
 
 ## Prerequirement
 
-Put the firmware binary files (e.g., `bootloader.bin`, `firmware.bin`, etc.) into the `static/fw` directory.  
+Put the firmware binary files (e.g., `bootloader.bin`, `firmware.bin`, etc.) into the `static/fw` directory.
 **Note:** The application loads firmware from `static/fw` at runtime, so make sure your FW files are present there.
 
 ## Testing it locally
 
-```
+```bash
 npm install
 npm run dev
 ```
@@ -20,7 +20,7 @@ Then open http://localhost:1234 in Chrome or Edge. The `npm run dev` step will s
 
 ## Generate build to publish
 
-```
+```bash
 npm install
 npm run build
 ```
