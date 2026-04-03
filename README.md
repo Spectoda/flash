@@ -4,7 +4,7 @@
 
 - it's is just a fork of esptool.js by expressif, we may add some smart features on top of it but hosting of FW and other stuff in integration with our platform is closed (integration with Spectoda Studio).
 
-Down here is kept official README info by Expressif
+Down here is kept official README info by Espressif
 
 # Javascript implementation of esptool
 
@@ -381,7 +381,7 @@ npm install
 npm run build
 cd examples/typescript
 npm install
-npm run dev # Run local sever with example code
+npm run dev # Run local server with example code
 ```
 
 Then open `http://localhost:1234` in a Chrome browser. The `npm run build` step builds the `lib` used in the example `examples/typescript/index.html`. Update this reference as described in the [Installation](#installation) section.
