@@ -1,0 +1,10 @@
+{
+  "schema_version": "companiesascode.todo_tasks.v1",
+  "scope": {
+    "id": "spectoda-modules-flash",
+    "name": "Spectoda flash",
+    "path": "modules/flash",
+    "owner": "module-owner"
+  },
+  "tasks": []
+}
